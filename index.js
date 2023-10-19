@@ -1,12 +1,23 @@
+const jwt_token = process.env.DUOLINGO_JWT
+if (!jwt_token){
+    throw "NO DUOLINGO_JWT FOUND"
+}
+const lessons = process.env.LESSONS ?? 1
+if (isNaN(lessons)){
+    throw "LESSONS SHOULD BE NUMBER"
+}
+
 const headers = {
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${process.env.DUOLINGO_JWT}`,
-  'user-agent':
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36',
+  'user-agent': 'curl/7.86.0',
+  'Content-Type': 'application/json', 
+  Authorization: `Bearer ${jwt_token}`,
+  Host: 'www.duolingo.com',
+  accept: '*/*',
+  credentials: "include"
 }
 
 const { sub } = JSON.parse(
-  Buffer.from(process.env.DUOLINGO_JWT.split('.')[1], 'base64').toString(),
+  Buffer.from(jwt_token.split('.')[1], 'base64').toString(),
 )
 
 const { fromLanguage, learningLanguage, xpGains } = await fetch(
@@ -14,64 +25,88 @@ const { fromLanguage, learningLanguage, xpGains } = await fetch(
   {
     headers,
   },
-).then(response => response.json())
+  ).then(response => {
+    if(response.status !== 200 ){
+      console.log(response.body)
+      throw Error('status not ok', response.statusText)
+    } 
+    return response.json()
+  })
 
-for (let i = 0; i < process.env.LESSONS; i++) {
+
+
+for (let i = 0; i < lessons; i++) {
+const skillId = xpGains.find(xpGain => xpGain.skillId).skillId
+
+const body = {
+  challengeTypes: [
+    "assist",
+    "characterIntro",
+    "characterMatch",
+    "characterPuzzle",
+    "characterSelect",
+    "characterTrace",
+    "completeReverseTranslation",
+    "definition",
+    "dialogue",
+    "form",
+    "freeResponse",
+    "gapFill",
+    "judge",
+    "listen",
+    "listenComplete",
+    "listenMatch",
+    "match",
+    "name",
+    "listenComprehension",
+    "listenIsolation",
+    "listenSpeak",
+    "listenTap",
+    "partialListen",
+    "partialReverseTranslate",
+    "patternTapComplete",
+    "readComprehension",
+    "select",
+    "selectPronunciation",
+    "selectTranscription",
+    "syllableTap",
+    "syllableListenTap",
+    "speak",
+    "tapCloze",
+    "tapClozeTable",
+    "tapComplete",
+    "tapCompleteTable",
+    "tapDescribe",
+    "translate",
+    "transliterate",
+    "typeCloze",
+    "typeClozeTable",
+    "typeCompleteTable",
+    "writeComprehension"
+  ],
+  fromLanguage,
+  isFinalLevel: false,
+  isV2: true,
+  juicy: true,
+  learningLanguage,
+  smartTipsVersion: 2,
+  skillId,
+  type: "LISTENING_PRACTICE",
+};
+
+
+
   const session = await fetch('https://www.duolingo.com/2017-06-30/sessions', {
-    body: JSON.stringify({
-      challengeTypes: [
-        'assist',
-        'characterIntro',
-        'characterMatch',
-        'characterPuzzle',
-        'characterSelect',
-        'characterTrace',
-        'completeReverseTranslation',
-        'definition',
-        'dialogue',
-        'form',
-        'freeResponse',
-        'gapFill',
-        'judge',
-        'listen',
-        'listenComplete',
-        'listenMatch',
-        'match',
-        'name',
-        'listenComprehension',
-        'listenIsolation',
-        'listenTap',
-        'partialListen',
-        'partialReverseTranslate',
-        'readComprehension',
-        'select',
-        'selectPronunciation',
-        'selectTranscription',
-        'syllableTap',
-        'syllableListenTap',
-        'speak',
-        'tapCloze',
-        'tapClozeTable',
-        'tapComplete',
-        'tapCompleteTable',
-        'tapDescribe',
-        'translate',
-        'typeCloze',
-        'typeClozeTable',
-        'typeCompleteTable',
-      ],
-      fromLanguage,
-      isFinalLevel: false,
-      isV2: true,
-      juicy: true,
-      learningLanguage,
-      skillId: xpGains.find(xpGain => xpGain.skillId).skillId,
-      smartTipsVersion: 2,
-      type: 'SPEAKING_PRACTICE',
-    }),
+    body: JSON.stringify(body),
     headers,
     method: 'POST',
-  }).then(response => response.json())
+  }).then(response => {
+    if(response.status !== 200 ){
+                console.log(response)
+      throw `Error calling POST /session : ${response.statusText}`
+    } 
+    return response.json()
+  })
 
   const response = await fetch(
     `https://www.duolingo.com/2017-06-30/sessions/${session.id}`,
@@ -89,7 +124,12 @@ for (let i = 0; i < process.env.LESSONS; i++) {
       headers,
       method: 'PUT',
     },
-  ).then(response => response.json())
+  ).then(response => {
+    if(response.status !== 200 ){
+      throw `Error calling PUT /session : ${response.statusText}`
+    } 
+    return response.json()
+  })
 
   console.log({ xp: response.xpGain })
 }
